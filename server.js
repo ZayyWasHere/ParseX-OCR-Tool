@@ -19,9 +19,10 @@ const PORT = process.env.PORT || 3000;
 
 // --- Passport/Session Middleware (START) ---
 
-// **IMPORTANT: ADD THIS SESSION_SECRET TO YOUR .env AND RENDER ENV VARS**
+// Middleware to manage the user session
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'T£0(Q1f;"xyGH9Lj}I0{0wxbZZ£Oi(4v', 
+    // IMPORTANT: Use your secure secret key from Render environment variables
+    secret: process.env.SESSION_SECRET || 'YOUR_VERY_STRONG_SECRET_KEY', 
     resave: false,
     saveUninitialized: false,
     cookie: { secure: 'auto', maxAge: 24 * 60 * 60 * 1000 } // 1 day validity
@@ -33,13 +34,14 @@ app.use(passport.session());
 
 // Passport Serialization (How to store user in session)
 passport.serializeUser((user, done) => {
-    // For now, store the Google ID
+    // We only store the Google ID in the session
     done(null, user.id);
 });
 
 // Passport Deserialization (How to retrieve user from session)
 passport.deserializeUser((id, done) => {
     // In a real app, look up the user by ID in your database here.
+    // For now, we simulate the user object retrieval
     const mockUser = { id: id, displayName: 'Authenticated User' }; 
     done(null, mockUser);
 });
@@ -53,16 +55,31 @@ passport.use(new GoogleStrategy({
 },
 (accessToken, refreshToken, profile, done) => {
     // This is where you would process the user profile (save to database)
+    // The profile object contains user details like ID, name, and emails
     return done(null, profile);
 }));
 
 // --- Passport/Session Middleware (END) ---
 
 
+// --- Custom Middleware for Authentication ---
+
+/**
+ * Middleware to ensure a user is logged in.
+ * If not authenticated, redirects them to the /login page.
+ */
+function ensureAuthenticated(req, res, next) {
+    if (req.isAuthenticated()) {
+        return next();
+    }
+    // If not authenticated, redirect to login page
+    res.redirect('/login');
+}
+
+
 // Configure Storage for Multer
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        // Create an 'uploads' directory if it doesn't exist
         const uploadDir = path.join(__dirname, 'uploads');
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir);
@@ -70,7 +87,6 @@ const storage = multer.diskStorage({
         cb(null, 'uploads/');
     },
     filename: (req, file, cb) => {
-        // Create a unique filename
         cb(null, Date.now() + '-' + file.originalname);
     }
 });
@@ -91,7 +107,6 @@ let worker;
 
 async function initializeWorker() {
     console.log(`Initializing Tesseract worker for multiple languages...`);
-    // NOTE: Tesseract.js will automatically download traineddata files for these languages if not found
     worker = await createWorker(languages.join('+'));
     console.log('Tesseract worker initialized and ready.');
 }
@@ -101,6 +116,15 @@ initializeWorker();
 
 // --- ROUTES (START) ---
 
+// Route to serve the dedicated login page
+app.get('/login', (req, res) => {
+    // If the user is already logged in, redirect them home
+    if (req.isAuthenticated()) {
+        return res.redirect('/');
+    }
+    res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
 // 1. Google Authentication Route (Initial redirect)
 app.get('/auth/google',
     passport.authenticate('google', { scope: ['profile', 'email'] })
@@ -108,42 +132,40 @@ app.get('/auth/google',
 
 // 2. Google Authentication Callback Route
 app.get('/auth/google/callback',
-    passport.authenticate('google', { failureRedirect: '/' }),
+    passport.authenticate('google', { failureRedirect: '/login' }),
     (req, res) => {
-        // Successful authentication, redirect home or to a dashboard
+        // Successful authentication, redirect to the main page
         res.redirect('/'); 
     }
 );
 
 // 3. Logout Route
-app.get('/auth/logout', (req, res) => {
+app.get('/auth/logout', (req, res, next) => {
     req.logout((err) => {
         if (err) { return next(err); }
-        res.redirect('/');
+        // Redirect back to the login page after successful logout
+        res.redirect('/login');
     });
 });
 
-// 4. OCR Processing Route
-app.post('/api/ocr', upload.single('image'), async (req, res) => {
+// 4. OCR Processing Route (NOW PROTECTED)
+// Only authenticated users can access this route
+app.post('/api/ocr', ensureAuthenticated, upload.single('image'), async (req, res) => {
     if (!req.file) {
         return res.status(400).json({ error: 'No image file uploaded.' });
     }
 
-    // Get the selected language from the form, default to English
     const lang = req.body.language || 'eng';
 
     try {
         const imagePath = req.file.path;
 
-        // Ensure worker is ready before running recognition
         if (!worker) {
              await initializeWorker();
         }
 
-        // Run OCR with the selected language
         const { data: { text } } = await worker.recognize(imagePath, lang);
         
-        // Clean up the uploaded image after processing
         fs.unlinkSync(imagePath);
 
         res.json({
@@ -154,7 +176,6 @@ app.post('/api/ocr', upload.single('image'), async (req, res) => {
         });
     } catch (error) {
         console.error('OCR Error:', error);
-        // Clean up on error, too
         if (req.file) {
             fs.unlinkSync(req.file.path);
         }
@@ -162,14 +183,19 @@ app.post('/api/ocr', upload.single('image'), async (req, res) => {
     }
 });
 
-// 5. User Check Route (To update the front-end)
+// 5. User Check Route
 app.get('/api/user', (req, res) => {
     if (req.isAuthenticated()) {
-        // Send a simplified user object if authenticated
+        // req.user comes from the deserializeUser function
         res.json({ isAuthenticated: true, username: req.user.displayName || 'User' });
     } else {
         res.json({ isAuthenticated: false });
     }
+});
+
+// 6. Root Route (Main OCR Page - Also protected, logic handled by script.js redirect)
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // --- ROUTES (END) ---
@@ -177,5 +203,6 @@ app.get('/api/user', (req, res) => {
 
 // Start the Server
 app.listen(PORT, () => {
+    // NOTE: We use PORT here because we renamed the variable earlier
     console.log(`Server running at http://localhost:${PORT}`);
 });
