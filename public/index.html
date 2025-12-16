@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ParseX - Turn Images into Text</title>
+
+    <style>
+        /* Modern CSS Reset */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        /* New Color Variables based on Template */
+        :root { 
+            --color-primary: #004499;       /* Dark Blue (Borders/Accents) */
+            --color-secondary: #007BFF;     /* Bright Electric Blue (Highlights/Text) */
+            --color-background: #0A0A0A;    /* Deep Black Background */
+            --color-bar-bg: #1A1A1A;       /* Widget/Bar Background */
+            --color-text: #E0E0E0;         /* White/Light Text */
+            --color-subtle-text: #777777;   /* Subtle Gray Text */
+        }
+        
+        body { 
+            font-family: 'Consolas', 'Courier New', monospace; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: flex-start; 
+            align-items: center; 
+            min-height: 100vh; 
+            background-color: var(--color-background); 
+            color: var(--color-text); 
+            text-align: center; 
+            padding-top: 60px; /* Space for the top bar */
+        }
+
+        /* --- Top Bar and Navigation (From Template) --- */
+        .top-bar { 
+            position: fixed; top: 0; left: 0; width: 100%; height: 60px; 
+            background-color: var(--color-bar-bg); 
+            border-bottom: 2px solid var(--color-primary); 
+            display: flex; justify-content: space-between; align-items: center; 
+            padding: 0 20px; box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5); z-index: 1000; 
+        }
+        .nav-links-left { display: flex; align-items: center; }
+        .nav-link { color: var(--color-text); text-decoration: none; text-transform: uppercase; font-size: 0.9em; font-weight: bold; letter-spacing: 1px; margin: 0 20px; padding: 5px 10px; transition: color 0.3s ease, border-bottom 0.3s ease; }
+        .nav-link:hover { color: var(--color-secondary); border-bottom: 2px solid var(--color-secondary); }
+        .nav-link.active { color: var(--color-secondary); border-bottom: 2px solid var(--color-primary); }
+        
+        /* ParseX Logo Styling (Update 1: POP Effect) */
+        .logo-text {
+            color: var(--color-secondary);
+            font-size: 1.5em;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            /* Neon Glow Effect */
+            text-shadow: 0 0 5px var(--color-secondary), 0 0 10px var(--color-secondary);
+            transition: text-shadow 0.5s ease;
+        }
+        .logo-text:hover {
+            text-shadow: 0 0 10px var(--color-secondary), 0 0 20px var(--color-secondary);
+        }
+
+        /* --- Main Content Container (Widget) --- */
+        .container { 
+            padding: 30px; 
+            background-color: var(--color-bar-bg); 
+            border-radius: 12px; 
+            border: 1px solid var(--color-primary); 
+            box-shadow: 0 10px 30px rgba(0, 70, 150, 0.4); 
+            max-width: 95%; 
+            width: 900px; 
+            margin: 20px auto; 
+            text-align: center; 
+            flex-grow: 1; 
+            animation: subtleGlow 4s infinite alternate ease-in-out; /* Keep the glow */
+        }
+
+        /* Animated Glow */
+        @keyframes subtleGlow {
+            0% { box-shadow: 0 0 10px rgba(0, 123, 255, 0.2), 0 10px 30px rgba(0, 0, 0, 0.4); }
+            50% { box-shadow: 0 0 15px rgba(0, 123, 255, 0.4), 0 10px 30px rgba(0, 0, 0, 0.6); }
+            100% { box-shadow: 0 0 10px rgba(0, 123, 255, 0.2), 0 10px 30px rgba(0, 0, 0, 0.4); }
+        }
+
+        /* Tab Controls */
+        .tab-buttons { display: flex; justify-content: flex-start; gap: 5px; margin-bottom: 25px; border-bottom: 2px solid #333; }
+        .tab-btn { background: none; border: none; color: var(--color-subtle-text); padding: 10px 15px; font-size: 1em; cursor: pointer; transition: color 0.3s, border-bottom 0.3s; border-bottom: 2px solid transparent; font-weight: bold; letter-spacing: 0.5px; }
+        .tab-btn:hover { color: var(--color-text); }
+        .tab-btn.active { color: var(--color-secondary); border-bottom: 2px solid var(--color-secondary); }
+        .tab-content { display: none; padding: 15px 0; text-align: left; }
+        .tab-content.active { display: block; }
+        
+        /* --- OCR Tab Specific Styles --- */
+        
+        .ocr-grid {
+            display: grid;
+            grid-template-columns: 1fr 250px;
+            gap: 25px;
+            margin-top: 20px;
+        }
+
+        .controls-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: stretch;
+        }
+        
+        .info-widget {
+            background-color: #1A1A1A;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid var(--color-primary);
+            box-shadow: 0 0 5px rgba(0, 123, 255, 0.2); 
+            animation: subtleGlow 3.5s infinite alternate-reverse ease-in-out; 
+        }
+
+        .info-widget h2 {
+             color: var(--color-secondary);
+             margin-bottom: 10px;
+             border-bottom: 1px solid var(--color-primary);
+             padding-bottom: 5px;
+        }
+
+        .info-widget ul {
+            list-style: none;
+            padding: 0;
+            margin-top: 10px;
+        }
+
+        .info-widget ul li {
+            font-size: 0.9em;
+            color: var(--color-subtle-text);
+            line-height: 1.6;
+        }
+
+        .info-widget ul li::before {
+            content: "•";
+            color: var(--color-secondary);
+            margin-right: 8px;
+        }
+
+
+        label {
+            font-weight: bold;
+            color: var(--color-text);
+            font-size: 0.9em;
+        }
+
+        #language-select {
+            padding: 10px 15px;
+            border: 1px solid #333;
+            border-radius: 6px;
+            background-color: #2c2c2c;
+            color: var(--color-text);
+            appearance: none;
+            cursor: pointer;
+            font-size: 1em;
+            width: 100%;
+        }
+
+        /* --- Buttons --- */
+        .button {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .animated-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 123, 255, 0.4);
+        }
+
+        .animated-button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .upload-button {
+            background-color: var(--color-primary);
+            color: var(--color-text);
+            min-width: 100%;
+        }
+
+        .upload-button:hover {
+            background-color: var(--color-secondary);
+        }
+
+        .convert-button {
+            background-color: var(--color-secondary);
+            color: var(--color-background);
+            font-size: 1.1em;
+            margin-top: 10px;
+        }
+
+        .convert-button:disabled {
+            background-color: #384242;
+            cursor: not-allowed;
+            color: #aaa;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .copy-button, .download-txt-button {
+            background-color: #333;
+            color: var(--color-text);
+            font-size: 0.9em;
+            flex-grow: 1;
+        }
+        
+        .copy-button:hover, .download-txt-button:hover {
+            background-color: #555;
+        }
+        
+        .file-input-hidden { opacity: 0; position: absolute; z-index: -1; }
+
+        /* Preview, Result, Scanning */
+        .preview-area {
+            text-align: center;
+            background-color: #2c2c2c;
+            padding: 15px;
+            border-radius: 8px;
+            min-height: 200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border: 2px dashed var(--color-primary);
+            margin-bottom: 20px;
+        }
+        #image-preview { max-width: 100%; max-height: 300px; border-radius: 4px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.2); }
+        .result-area { display: flex; flex-direction: column; }
+        #result-text {
+            width: 100%; padding: 15px; border-radius: 8px; border: 1px solid #333;
+            background-color: #2c2c2c; color: var(--color-text); resize: vertical;
+            font-family: monospace; font-size: 0.9em;
+        }
+        
+        /* Scanning Bar */
+        #scan-status { text-align: center; margin: 15px 0; }
+        #scan-message { color: var(--color-secondary); font-weight: bold; margin-bottom: 5px; }
+        .scan-bar-container { height: 10px; background-color: #333; border-radius: 5px; overflow: hidden; }
+        .scan-bar { height: 100%; width: 0; background-color: var(--color-secondary); transition: width 30s linear; }
+
+        /* --- History Tab Styles --- */
+        .history-list {
+            list-style: none;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .history-item {
+            background-color: #1A1A1A;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+        .history-item:hover {
+            background-color: #2c2c2c;
+            border-color: var(--color-secondary);
+        }
+        .history-details {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .history-title {
+            color: var(--color-text);
+            font-weight: bold;
+            font-size: 1em;
+            margin-bottom: 5px;
+        }
+        .history-meta {
+            color: var(--color-subtle-text);
+            font-size: 0.8em;
+        }
+        .history-actions button {
+            background-color: var(--color-primary);
+            color: var(--color-text);
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .history-actions button:hover {
+            background-color: var(--color-secondary);
+        }
+        
+        /* --- Footer (From Template) --- */
+        .footer { width: 100%; padding: 20px 0; background-color: var(--color-bar-bg); border-top: 1px solid #333; color: var(--color-subtle-text); font-size: 0.8em; text-align: center; margin-top: auto; }
+        .footer-link { color: var(--color-subtle-text); text-decoration: none; transition: color 0.2s; }
+        .footer-link:hover { color: var(--color-secondary); }
+
+        /* Media Queries (From Template) */
+        @media (max-width: 768px) {
+            .ocr-grid { grid-template-columns: 1fr; }
+            .top-bar { height: auto; flex-direction: column; padding: 10px 0; }
+            .nav-links-left { flex-direction: column; width: 100%; margin-bottom: 10px; }
+            .nav-link { margin: 5px 10px; font-size: 0.8em; }
+            body { padding-top: 150px; }
+        }
+    </style>
+</head>
+<body>
+
+<nav class="top-bar">
+    <div class="nav-links-left">
+        <a href="#" class="logo-text">ParseX</a>
+        <a href="#link1" class="nav-link">About</a>
+        <a href="#link2" class="nav-link">Docs</a>
+    </div>
+
+    <div class="user-profile" id="userProfile">
+         <span style="color: var(--color-subtle-text); font-size: 0.9em;">Developer Access</span>
+    </div>
+</nav>
+
+<div class="container">
+    <h1 style="color: var(--color-secondary); font-size: 2.5em; margin-bottom: 5px;">ParseX</h1>
+    <p class="subtitle">Turn Images into Text. Instantly.</p>
+    
+    <div class="tab-buttons">
+        <button class="tab-btn active" onclick="openTab(event, 'ocr')">OCR</button>
+        <button class="tab-btn" onclick="openTab(event, 'history')">History</button>
+        <button class="tab-btn" onclick="openTab(event, 'api')">API</button>
+    </div>
+    
+    <div id="ocr" class="tab-content active">
+        <div class="ocr-grid">
+            
+            <div class="controls-panel">
+                
+                <div class="control-group">
+                    <label for="language-select">OCR Language:</label>
+                    <select id="language-select">
+                        <option value="eng">English (Default)</option>
+                        <option value="spa">Spanish</option>
+                        <option value="deu">German</option>
+                        <option value="fra">French</option>
+                        <option value="ita">Italian</option>
+                    </select>
+                </div>
+                
+                <div class="control-group">
+                    <input type="file" id="image-upload" accept="image/*" class="file-input-hidden">
+                    <label for="image-upload" class="button animated-button upload-button">
+                        <span id="upload-text">Select Image or Document</span>
+                    </label>
+                </div>
+                
+                <div class="preview-area">
+                    <img id="image-preview" src="#" alt="Image Preview" style="display: none;">
+                </div>
+                
+                <button id="convert-button" class="button animated-button convert-button" disabled>
+                    <span id="button-text">Convert Image</span>
+                    <div id="loading-spinner" class="spinner-border" style="display: none;"></div>
+                </button>
+                
+            </div>
+            
+            <div class="info-widget">
+                <h2>Quick Start</h2>
+                <p style="font-size: 0.9em; color: var(--color-text);">
+                    Upload an image and press Convert. We support multiple languages and a 30-second security scan for all files.
+                </p>
+                
+                <div class="developer-section">
+                    <h2>Developer Integration</h2>
+                    <p style="color: var(--color-subtle-text); font-size: 0.9em;">Integrate ParseX into your workflow:</p>
+                    <ul>
+                        <li>RESTful endpoints</li>
+                        <li>JSON responses</li>
+                        <li>Minimal setup</li>
+                        <li>Scales with your product</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <div id="scan-status" style="display: none;">
+            <p id="scan-message">Starting scan...</p>
+            <div class="scan-bar-container">
+                <div class="scan-bar" id="scan-progress"></div>
+            </div>
+        </div>
+        
+        <div class="result-area">
+            <textarea id="result-text" placeholder="Your extracted text will appear here..." rows="10" readonly></textarea>
+            
+            <div class="button-group">
+                <button id="copy-button" class="button animated-button copy-button" style="display: none;">Copy Text</button>
+                <button id="download-txt-button" class="button animated-button download-txt-button" style="display: none;">Download .txt</button>
+                </div>
+        </div>
+    </div>
+    
+    <div id="history" class="tab-content">
+        <h2 style="color: var(--color-secondary); margin-bottom: 15px;">Recent Conversion History</h2>
+        <ul class="history-list">
+            <li class="history-item">
+                <div class="history-details">
+                    <span class="history-title">Receipt-2025-12-16.jpg (English)</span>
+                    <span class="history-meta">Saved Locally • 1 day ago • Auto Expires in 7 days</span>
+                </div>
+                <div class="history-actions">
+                    <button>Re-open</button>
+                </div>
+            </li>
+            <li class="history-item">
+                <div class="history-details">
+                    <span class="history-title">German_Manual_Page3.png (German)</span>
+                    <span class="history-meta">Account Synced • 3 weeks ago • Permanent</span>
+                </div>
+                <div class="history-actions">
+                    <button>Re-open</button>
+                </div>
+            </li>
+            <li class="history-item">
+                <div class="history-details">
+                    <span class="history-title">Old-Invoice.pdf (French)</span>
+                    <span class="history-meta">Saved Locally • 2 months ago • Expired</span>
+                </div>
+                <div class="history-actions">
+                    <button disabled>Re-open</button>
+                </div>
+            </li>
+        </ul>
+        <p style="margin-top: 20px; font-size: 0.9em; color: var(--color-subtle-text);">Note: History features are currently placeholders. Implementation requires local storage or a backend database.</p>
+    </div>
+
+    <div id="api" class="tab-content">
+        <h2 style="color: var(--color-secondary); margin-bottom: 15px;">Developer API Integration</h2>
+        <div class="info-widget" style="margin-bottom: 20px;">
+             <h3 style="color: var(--color-text); margin-bottom: 10px;">Your API Key</h3>
+             <code style="background: #000; padding: 8px 15px; border-radius: 4px; display: block; overflow-x: auto;">
+                 <span style="color: var(--color-primary);">pk_test_</span><span style="color: var(--color-text);">sk_parse_x_7B2eA9c3D</span>
+             </code>
+             <button class="button animated-button copy-button" style="margin-top: 15px;">Generate New Key</button>
+        </div>
+        
+        <h3 style="color: var(--color-secondary); border-bottom: 1px solid #333; padding-bottom: 5px; margin-bottom: 15px;">Usage Stats & Limits</h3>
+        <p style="font-size: 0.9em;">
+            **Current Usage:** 12,345/100,000 requests this month. <br>
+            **Rate Limit:** 5 requests per second (RPS).
+        </p>
+        
+        <h3 style="color: var(--color-secondary); border-bottom: 1px solid #333; padding-bottom: 5px; margin-top: 25px; margin-bottom: 15px;">API Playground</h3>
+        <p style="font-size: 0.9em; color: var(--color-subtle-text);">
+            Upload an image to see the raw JSON response our API returns. (Requires code update).
+        </p>
+    </div>
+    
+</div>
+
+<footer class="footer">
+    &copy; 2025 ParseX. All Rights Reserved. | <a href="#" class="footer-link">Privacy</a>
+</footer>
+
+<script src="script.js"></script> <script>
+    // --- Utility Function for Tabs ---
+    function openTab(evt, tabName) {
+        let i, tabcontent, tablinks;
+        tabcontent = document.getElementsByClassName("tab-content");
+        for (i = 0; i < tabcontent.length; i++) { tabcontent[i].classList.remove("active"); }
+        
+        tablinks = document.getElementsByClassName("tab-btn");
+        for (i = 0; i < tablinks.length; i++) { tablinks[i].classList.remove("active"); }
+        
+        document.getElementById(tabName).classList.add("active");
+        evt.currentTarget.classList.add("active");
+    }
+
+    // Initialize: Show the OCR tab when the page loads
+    document.addEventListener("DOMContentLoaded", function() {
+        // Ensure only the first tab is active at startup
+        document.getElementById('ocr').classList.add("active");
+        document.querySelector('.tab-buttons .tab-btn:first-child').classList.add("active");
+    });
+</script>
+
+</body>
+</html>

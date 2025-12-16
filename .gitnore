@@ -1,0 +1,9 @@
+# Dependencies
+/node_modules
+# Tesseract language data (These are large and unnecessary for GitHub/Render if you are using tesseract.js which downloads them)
+*.traineddata
+# Environment variables
+.env
+# Optional: Logs/Output
+/uploads
+/tessdata
