@@ -91,6 +91,7 @@ app.post('/api/convert', upload.single('image'), async (req, res) => {
 
 // --- Server Startup ---
 
-app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
+// FIX: Change 'port' to 'PORT' here and in the console log:
+app.listen(PORT, () => {
+    console.log(`Server running at http://localhost:${PORT}`);
 });
